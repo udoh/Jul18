@@ -7,43 +7,159 @@
 //
 
 #import "Jul18AppDelegate.h"
+#import "View.h"
 
 @implementation Jul18AppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
-    self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
     // Override point for customization after application launch.
-    self.window.backgroundColor = [UIColor whiteColor];
+    
+    
+    // setup file paths and urls
+    NSBundle *bundle = [NSBundle mainBundle];
+    if (!bundle) {
+        NSLog(@"could not load main bundle!");
+        return YES;
+    }
+    
+    NSString *movieFileName = [bundle pathForResource:@"easy3" ofType:@"mp4"];
+    if (!movieFileName) {
+        NSLog(@"could not find file easy.mp4");
+        return YES;
+    }
+    
+    NSURL *movieUrl = [NSURL fileURLWithPath:movieFileName];
+    if (!movieUrl) {
+        NSLog(@"could not create url for file %@", movieFileName);
+        return YES;
+    }
+    
+    _movieController = [[MPMoviePlayerController alloc] init];
+    if (!_movieController) {
+        NSLog(@"could not create MPMoviePlayerController");
+        return YES;
+    }
+    
+    NSString *soundFileName = [bundle pathForResource: @"birds" ofType: @"mp3"];
+    if (!soundFileName) {
+        NSLog(@"could not load sound file");
+        return YES;
+    }
+    
+	NSURL *soundUrl = [NSURL fileURLWithPath: soundFileName];
+    if (!soundUrl) {
+        NSLog(@"could not create url for file %@", soundFileName);
+        return YES;
+    }
+    
+    OSStatus error = AudioServicesCreateSystemSoundID((__bridge CFURLRef)soundUrl, &_sid);
+	if (error != kAudioServicesNoError) {
+		NSLog(@"AudioServicesCreateSystemSoundID error == %ld", error);
+	}
+    
+    NSString *musicFileName = [bundle pathForResource:@"music" ofType:@"wav"];
+    if (!musicFileName) {
+        NSLog(@"could not find file music.wav");
+        return YES;
+    }
+    
+    NSURL *musicUrl = [NSURL fileURLWithPath:musicFileName];
+    if (!musicUrl) {
+        NSLog(@"could not create url for file %@", musicFileName);
+        return YES;
+    }
+    
+    
+    // movie controller
+    _movieController.shouldAutoplay = NO;
+    _movieController.scalingMode = MPMovieScalingModeNone;
+    _movieController.controlStyle = MPMovieControlStyleFullscreen;
+    _movieController.movieSourceType = MPMovieSourceTypeFile;
+    [_movieController setContentURL:movieUrl];
+    
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+	
+	[nc addObserver:self selector:@selector(playbackDidFinish:) name:MPMoviePlayerPlaybackDidFinishNotification object: _movieController];
+    
+    
+    NSError *avError = nil;
+	_player = [[AVAudioPlayer alloc] initWithContentsOfURL: musicUrl error: &avError];
+	if (!_player) {
+		NSLog(@"could not initialize player:  %@", avError);
+		return YES;
+	}
+    
+    
+    // audio player (switch)
+    _player.volume = 1.0;
+	_player.numberOfLoops = 0;
+	_player.delegate = self;
+    
+    if (![_player prepareToPlay]) {
+		NSLog(@"prepareToPlay failed");
+		return YES;
+	}
+    
+    
+    UIScreen *screen = [UIScreen mainScreen];
+	_view = [[View alloc] initWithFrame: screen.applicationFrame];
+	self.window = [[UIWindow alloc] initWithFrame: screen.bounds];
+	//self.window.backgroundColor = [UIColor whiteColor];
+    
+	[self.window addSubview: _view];
     [self.window makeKeyAndVisible];
+    
     return YES;
 }
 
-- (void)applicationWillResignActive:(UIApplication *)application
-{
-    // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-    // Use this method to pause ongoing tasks, disable timers, and throttle down OpenGL ES frame rates. Games should use this method to pause the game.
+
+- (void) playbackDidFinish: (NSNotification *) notification {
+	//notification.object is the movie player controller.
+	[_movieController.view removeFromSuperview];
+	[UIApplication sharedApplication].statusBarHidden = NO;
+	[self.window addSubview: _view];
 }
 
-- (void)applicationDidEnterBackground:(UIApplication *)application
-{
-    // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later. 
-    // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
+- (void) playMovie: (id) sender {
+
+	_movieController.view.frame = _view.frame;
+	[_view removeFromSuperview];
+	[self.window addSubview: _movieController.view];
+	[_movieController play];
 }
 
-- (void)applicationWillEnterForeground:(UIApplication *)application
-{
-    // Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.
+- (void) playSound: (id) sender {
+
+	AudioServicesPlaySystemSound(kSystemSoundID_Vibrate);
+	AudioServicesPlaySystemSound(_sid);
 }
 
-- (void)applicationDidBecomeActive:(UIApplication *)application
-{
-    // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+- (void) valueChanged: (id) sender {
+	UISwitch *s = sender;
+	if (s.isOn) {
+
+		if (![_player play]) {
+			NSLog(@"[player play] failed.");
+		}
+		NSLog(@"Playing at %g of %g seconds.", _player.currentTime, _player.duration);
+	} else {
+
+		NSLog(@"Paused at %g of %g seconds.", _player.currentTime, _player.duration);
+		[_player pause];
+        
+		if (![_player prepareToPlay]) {
+			NSLog(@"prepareToPlay failed");
+		}
+        
+	}
 }
 
-- (void)applicationWillTerminate:(UIApplication *)application
-{
-    // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+- (void) audioPlayerDidFinishPlaying: (AVAudioPlayer *) p successfully: (BOOL) flag {
+	if (p == _player) {
+		[_view.mySwitch setOn: NO animated: YES];
+	}
 }
+
 
 @end

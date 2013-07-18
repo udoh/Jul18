@@ -7,9 +7,20 @@
 //
 
 #import <UIKit/UIKit.h>
+#import <MediaPlayer/MediaPlayer.h>
+#import <AudioToolbox/AudioToolbox.h>
+#import <AVFoundation/AVAudioPlayer.h>
 
-@interface Jul18AppDelegate : UIResponder <UIApplicationDelegate>
+@class View;
+
+@interface Jul18AppDelegate: UIResponder <UIApplicationDelegate, AVAudioPlayerDelegate> {
+    
+	MPMoviePlayerController *_movieController;
+	View *_view;
+	UIWindow *_window;
+    SystemSoundID _sid;
+    AVAudioPlayer *_player;
+}
 
 @property (strong, nonatomic) UIWindow *window;
-
 @end
